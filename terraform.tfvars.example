@@ -1,0 +1,31 @@
+# =====================================================================
+# Exemplo de credenciais e variáveis sensíveis
+# NUNCA comitar `terraform.tfvars` reais que contenham essas chaves.
+# O gitignore já está bloqueando eles.
+#
+# Copie este arquivo para `terraform.tfvars` e altere os valores abaixo.
+# =====================================================================
+
+# --- Oracle Cloud (OCI) ---
+oci_tenancy_ocid        = "ocid1.tenancy.oc1..."
+oci_user_ocid           = "ocid1.user.oc1..."
+oci_fingerprint         = "11:22:33:44:55:66..."
+oci_private_key_path    = "~/.oci/oci_api_key.pem"
+oci_compartment_ocid    = "ocid1.compartment.oc1..."
+ssh_public_key          = "ssh-rsa AAAAB3N...."
+ubuntu_os_password      = "sua-senha-segura-aqui"
+
+# --- Cloudflare ---
+cloudflare_api_token    = "sua-chave-api-da-cloudflare-com-permissao-em-dns-access"
+cloudflare_account_id   = "seu-account-id-da-cloudflare"
+
+# string gerada criptograficamente para o secret do túnel (requer mais de 32 bytes)
+# ex: openssl rand -base64 32
+tunnel_secret           = "sua-senha-de-secret-gerada-aqui..." 
+
+# webhook de comunicacão
+discord_webhook_url     = "https://xxxxx"
+
+# --- AWS S3 (Backend de state) ---
+#aws_access_key_id      = "AKIAXXXX..."
+#aws_secret_access_key  = "SECRET-AWS-KEY-XXXXX..."

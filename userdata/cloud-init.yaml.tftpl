@@ -1,0 +1,226 @@
+#cloud-config
+
+# Configura o fuso horário e locale
+timezone: America/Sao_Paulo
+locale: en_US.UTF-8
+
+# Atualiza pacotes e sistema
+package_update: true
+package_upgrade: true
+
+# Configura a senha nativa do usuario ubuntu (necessaria pro login do Cockpit)
+chpasswd:
+  list: |
+    ubuntu:${ubuntu_os_password}
+  expire: False
+
+# Configuração e Ativação do NTP (Chrony)
+ntp:
+  enabled: true
+  ntp_client: chrony
+
+# Pacotes requiridos básicos
+packages:
+  - ca-certificates
+  - curl
+  - wget
+  - gnupg
+  - vim
+  - nano
+  - git
+  - htop
+  - iotop
+  - jq
+  - unzip
+  - tar
+  - rsync
+  - dnsutils
+  - apt-transport-https
+  - software-properties-common
+  - cockpit
+  - udisks2-lvm2
+  - cockpit-pcp
+  - netdata
+  - tree
+  - ncdu
+
+# Injeta arquivos de configuracao no sistema
+write_files:
+  # Configura o docker para usar log-driver (limita o tamanho dos logs) live-restore (reinicia containers automaticamente)
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "live-restore": true,
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+
+  # Workaround: Força o NetworkManager a assumir devices criados manualmente
+  - path: /etc/NetworkManager/conf.d/10-globally-managed-devices.conf
+    content: |
+      [keyfile]
+      unmanaged-devices=none
+
+  # Docker Compose do Traefik
+  - path: /opt/server/compose/traefik/docker-compose.yml
+    content: |
+      ${indent(6, traefik_compose_yml)}
+
+  # Configura o Cockpit para aceitar WebSockets do reverse proxy via Tunnel
+  - path: /etc/cockpit/cockpit.conf
+    content: |
+      ${indent(6, cockpit_conf)}
+
+  # Configuração do Loki
+  - path: /opt/server/apps/loki/loki-config.yaml
+    content: |
+      ${indent(6, loki_config_yaml)}
+
+  # Configuração do Promtail
+  - path: /opt/server/apps/promtail/promtail-config.yaml
+    content: |
+      ${indent(6, promtail_config_yaml)}
+
+  # Configuração Automática do Loki no Grafana
+  - path: /opt/server/apps/grafana/provisioning/datasources/loki.yaml
+    content: |
+      ${indent(6, grafana_datasource_loki)}
+
+  # Provedor Automático de Dashboards do Grafana
+  - path: /opt/server/apps/grafana/provisioning/dashboards/provider.yaml
+    content: |
+      ${indent(6, grafana_provider_yaml)}
+  # JSON do Dashboard Inicial de Logs
+  - path: /opt/server/apps/grafana/provisioning/dashboards/logs.json
+    content: |
+      ${indent(6, grafana_logs_json)}
+
+  # Configuração de Alertas do Grafana (Discord Webhook)
+  - path: /opt/server/apps/grafana/provisioning/alerting/contactpoints.yaml
+    content: |
+      ${indent(6, grafana_contactpoints)}
+
+  # Docker Compose da Observabilidade (Grafana, Loki, Promtail)
+  - path: /opt/server/compose/observability/docker-compose.yml
+    content: |
+      ${indent(6, observability_compose_yml)}
+
+  # Docker Compose do Uptime Kuma
+  - path: /opt/server/compose/uptime-kuma/docker-compose.yml
+    content: |
+      ${indent(6, uptime_kuma_compose_yml)}
+
+  # -------------------------------------------------------------------------
+  # Portal da infra (Página HTML com NGINX)
+  # -------------------------------------------------------------------------
+  - path: /opt/server/apps/portal/index.html
+    content: |
+      ${indent(6, portal_html)}
+
+  - path: /opt/server/compose/portal/docker-compose.yml
+    content: |
+      ${indent(6, portal_compose_yml)}
+
+# Mantemos apenas o workaround do apt no bootcmd.
+bootcmd:
+  # Força o apt a usar IPv4 para evitar timeouts na rede da OCI
+  - echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
+
+runcmd:
+  # =========================================================================
+  # 0. Cria a Estrutura de Diretórios e Permissões Base
+  # =========================================================================
+  - mkdir -p /opt/server/apps
+  - mkdir -p /opt/server/data
+  - mkdir -p /opt/server/logs
+  - mkdir -p /opt/server/backups
+  - mkdir -p /opt/server/secrets
+  - mkdir -p /opt/server/shared
+  - mkdir -p /opt/server/compose
+  - chown -R ubuntu:ubuntu /opt/server
+  - chmod -R 755 /opt/server
+  - chmod 700 /opt/server/secrets
+  - chmod 700 /opt/server/backups
+
+  # =========================================================================
+  # 1. Instalar Docker Engine Oficial (ao invés do mantido pelo repositório Ubuntu)
+  # =========================================================================
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor
+    -o /usr/share/keyrings/docker-archive-keyring.gpg
+  - echo "deb [arch=$(dpkg --print-architecture)
+    signed-by=/usr/share/keyrings/docker-archive-keyring.gpg]
+    https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo
+    tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - sudo apt-get update
+  - sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+    docker-compose-plugin
+
+  # Habilitar docker service e colocar usuario ubuntu no grupo docker
+  - sudo systemctl enable docker
+  - sudo systemctl start docker
+  - sudo usermod -aG docker ubuntu
+
+  # =========================================================================
+  # 2. Instalar e Configurar Cloudflare Tunnel (cloudflared)
+  # =========================================================================
+  # Baixa binario cloudflared de acordo com a arquitetura do SO (aarch64 vs amd64)
+  # OCI A1.Flex requer o binario ARM64
+  - curl -L --output cloudflared.deb
+    https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb
+  - sudo dpkg -i cloudflared.deb || sudo apt-get install -f -y
+
+  # Instalar o tunnel como serviço e inicializar passando a secret por auth_token
+  - sudo cloudflared service install ${tunnel_token}
+  - sudo systemctl enable cloudflared
+  - sudo systemctl start cloudflared
+
+  # =========================================================================
+  # 3. Inicializa Serviços Nativos Base
+  # =========================================================================
+  # Traefik (Proxy Reverso para Containers Docker)
+  - sudo docker network create traefik_net || true
+  - cd /opt/server/compose/traefik && sudo docker compose up -d
+
+  # Observabilidade (Loki, Promtail, Grafana)
+  - sudo mkdir -p /opt/server/data/grafana
+  - sudo chown -R 472:472 /opt/server/data/grafana
+  - sudo mkdir -p /opt/server/data/loki
+  - sudo chown -R 10001:10001 /opt/server/data/loki
+  - cd /opt/server/compose/observability && sudo docker compose up -d
+
+  # Uptime Kuma
+  - sudo mkdir -p /opt/server/data/uptime-kuma
+  - cd /opt/server/compose/uptime-kuma && sudo docker compose up -d
+
+  # Portal Web (Linktree)
+  - sudo mkdir -p /opt/server/apps/portal
+  - cd /opt/server/compose/portal && sudo docker compose up -d
+
+  # =========================================================================
+  # 4. Workaround do Cockpit (PackageKit Offline Bug em Servidores Cloud)
+  # =========================================================================
+  - sudo nmcli con add type dummy con-name fake ifname fake0 ip4 192.0.2.2/24
+    gw4 192.0.2.1 || true
+
+  # =========================================================================
+  # 5. Configurar Alertas do Netdata (Discord Webhook)
+  # =========================================================================
+  - sudo touch /etc/netdata/health_alarm_notify.conf
+  - sudo bash -c 'echo "SEND_DISCORD=\"YES\"" >>
+    /etc/netdata/health_alarm_notify.conf'
+  - sudo bash -c 'echo "DISCORD_WEBHOOK_URL=\"${discord_webhook_url}\"" >>
+    /etc/netdata/health_alarm_notify.conf'
+  - sudo bash -c 'echo "DEFAULT_RECIPIENT_DISCORD=\"alarms\"" >>
+    /etc/netdata/health_alarm_notify.conf'
+  - sudo systemctl restart netdata
+
+# Reinicia o sistema após todas as instalações:
+power_state:
+  mode: reboot
+  message: Reiniciando após finalizar as instalações
+  condition: True
+
+final_message: "O sistema OCI subiu com Docker e Cloudflared com sucesso ao final. $UPTIME"
