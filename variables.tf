@@ -78,8 +78,8 @@ variable "cloudflare_zone_name" {
   type        = string
 }
 
-variable "cloudflare_e-mail_access" {
-  description = "E-mail a ser usado para autenticação na Cloudflare"
+variable "cloudflare_email_access" {
+  description = "Email a ser usado para autenticação na Cloudflare"
   type        = string
 }
 

@@ -61,7 +61,7 @@ resource "cloudflare_zero_trust_access_policy" "protected_apps_policy" {
 
   # Exemplo mínimo: Restringe o acesso ao domínio definido na policy apenas para um admin
   include {
-    email = [var.cloudflare_e-mail_access]
+    email = [var.cloudflare_email_access]
   }
 }
 
