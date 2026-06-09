@@ -59,7 +59,7 @@ resource "oci_core_instance" "foundation_vm" {
 
     # Define o template file em shell script com injecao do token gerado pela cloudflare tf
     user_data = base64encode(templatefile("${path.module}/userdata/cloud-init.yaml.tftpl", {
-      tunnel_token        = cloudflare_zero_trust_tunnel_cloudflared.foundation_tunnel.tunnel_token
+      tunnel_token        = var.tunnel_secret
       cockpit_url         = "cockpit.${var.cloudflare_zone_name}"
       ubuntu_os_password  = var.ubuntu_os_password
       base_domain         = var.cloudflare_zone_name

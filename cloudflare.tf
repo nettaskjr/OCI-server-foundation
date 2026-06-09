@@ -1,6 +1,8 @@
 # Localiza os dados da conta providos na zone name do tfvars
 data "cloudflare_zone" "foundation_zone" {
-  name = var.cloudflare_zone_name
+  filter = {
+    name = var.cloudflare_zone_name
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -10,7 +12,6 @@ data "cloudflare_zone" "foundation_zone" {
 resource "cloudflare_zero_trust_tunnel_cloudflared" "foundation_tunnel" {
   account_id = var.cloudflare_account_id
   name       = "${local.resource_prefix}-tunnel"
-  secret     = var.tunnel_secret
   config_src = "cloudflare"
 }
 
@@ -18,12 +19,13 @@ resource "cloudflare_zero_trust_tunnel_cloudflared" "foundation_tunnel" {
 # Cloudflare DNS CNAME Record (Aponta o Subdomínio p/ o Túnel)
 # -----------------------------------------------------------------------------
 
-resource "cloudflare_record" "foundation_tunnel_record" {
+resource "cloudflare_dns_record" "foundation_tunnel_record" {
   zone_id = data.cloudflare_zone.foundation_zone.id
   name    = var.foundation_subdomain
   content = "${cloudflare_zero_trust_tunnel_cloudflared.foundation_tunnel.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
+  ttl     = 1
 }
 
 # -----------------------------------------------------------------------------
@@ -46,23 +48,18 @@ resource "cloudflare_zero_trust_access_application" "protected_apps" {
   name             = "${local.resource_prefix}-protection-${replace(each.key, ".", "-")}"
   domain           = each.key
   session_duration = "24h"
+  type             = "self_hosted"
 
-  # Aplicação do tipo self_hosted que será interceptada pela tela de login da CF
-  type = "self_hosted"
-}
-
-resource "cloudflare_zero_trust_access_policy" "protected_apps_policy" {
-  for_each       = cloudflare_zero_trust_access_application.protected_apps
-  account_id     = var.cloudflare_account_id
-  application_id = each.value.id
-  precedence     = 1
-  name           = "Default Allow Admin"
-  decision       = "allow"
-
-  # Exemplo mínimo: Restringe o acesso ao domínio definido na policy apenas para um admin
-  include {
-    email = [var.cloudflare_email_access]
-  }
+    policies = [{
+      name       = "Default Allow Admin"
+      decision   = "allow"
+      precedence = 1
+      include = [{
+        email = {
+          email = var.cloudflare_email_access
+        }
+      }]
+    }]
 }
 
 # -----------------------------------------------------------------------------
@@ -73,41 +70,38 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "foundation_tunnel_co
   account_id = var.cloudflare_account_id
   tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.foundation_tunnel.id
 
-  config {
+  config = {
     # Rota 1: Tudo que chegar como ssh.nettask.com.br joga pra porta 22
-    ingress_rule {
-      hostname = "ssh.${var.cloudflare_zone_name}"
-      service  = "ssh://localhost:22"
-    }
-
-    # Rota 2: Cockpit Server Management Panel
-    ingress_rule {
-      hostname = "cockpit.${var.cloudflare_zone_name}"
-      service  = "http://localhost:9090"
-    }
-
-    # Rota 3: Netdata Observability Dashboard
-    ingress_rule {
-      hostname = "netdata.${var.cloudflare_zone_name}"
-      service  = "http://localhost:19999"
-    }
-
-    # Rota 4: Traefik Dashboard
-    ingress_rule {
-      hostname = "traefik.${var.cloudflare_zone_name}"
-      service  = "http://localhost:8080"
-    }
-
-    # Rota 5: O domínio curinga (Wildcard) joga pro Traefik na porta 80 (DEVE FICAR AQUI, POR ÚLTIMO ANTES DO FALLBACK)
-    ingress_rule {
-      hostname = "*.${var.cloudflare_zone_name}"
-      service  = "http://localhost:80"
-    }
-
-    # Rota 6: Fallback obrigatório no final
-    ingress_rule {
-      service = "http_status:404"
-    }
+    ingress = [
+      {
+        hostname = "ssh.${var.cloudflare_zone_name}"
+        service  = "ssh://localhost:22"
+      },
+      # Rota 2: Cockpit Server Management Panel
+      {
+        hostname = "cockpit.${var.cloudflare_zone_name}"
+        service  = "http://localhost:9090"
+      },
+      # Rota 3: Netdata Observability Dashboard
+      {
+        hostname = "netdata.${var.cloudflare_zone_name}"
+        service  = "http://localhost:19999"
+      },
+      # Rota 4: Traefik Dashboard
+      {
+        hostname = "traefik.${var.cloudflare_zone_name}"
+        service  = "http://localhost:8080"
+      },
+      # Rota 5: O domínio curinga (Wildcard) joga pro Traefik na porta 80 (DEVE FICAR AQUI, POR ÚLTIMO ANTES DO FALLBACK)
+      {
+        hostname = "*.${var.cloudflare_zone_name}"
+        service  = "http://localhost:80"
+      },
+      # Rota 6: Fallback obrigatório no final
+      {
+        service = "http_status:404"
+      }
+    ]
   }
 }
 
@@ -115,70 +109,76 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "foundation_tunnel_co
 # Cloudflare DNS CNAME Record (Aponta o Subdomínio SSH p/ o Túnel)
 # -----------------------------------------------------------------------------
 
-resource "cloudflare_record" "ssh_tunnel_record" {
+resource "cloudflare_dns_record" "ssh_tunnel_record" {
   zone_id = data.cloudflare_zone.foundation_zone.id
   name    = "ssh"
   content = "${cloudflare_zero_trust_tunnel_cloudflared.foundation_tunnel.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
+  ttl     = 1
 }
 
 # -----------------------------------------------------------------------------
 # Cloudflare DNS CNAME Record (Aponta o Subdomínio Cockpit p/ o Túnel)
 # -----------------------------------------------------------------------------
 
-resource "cloudflare_record" "cockpit_tunnel_record" {
+resource "cloudflare_dns_record" "cockpit_tunnel_record" {
   zone_id = data.cloudflare_zone.foundation_zone.id
   name    = "cockpit"
   content = "${cloudflare_zero_trust_tunnel_cloudflared.foundation_tunnel.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
+  ttl     = 1
 }
 
 # -----------------------------------------------------------------------------
 # Cloudflare DNS CNAME Record (Aponta o Subdomínio Netdata p/ o Túnel)
 # -----------------------------------------------------------------------------
 
-resource "cloudflare_record" "netdata_tunnel_record" {
+resource "cloudflare_dns_record" "netdata_tunnel_record" {
   zone_id = data.cloudflare_zone.foundation_zone.id
   name    = "netdata"
   content = "${cloudflare_zero_trust_tunnel_cloudflared.foundation_tunnel.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
+  ttl     = 1
 }
 
 # -----------------------------------------------------------------------------
 # Cloudflare DNS CNAME Record (Wildcard para o Traefik)
 # -----------------------------------------------------------------------------
 
-resource "cloudflare_record" "wildcard_tunnel_record" {
+resource "cloudflare_dns_record" "wildcard_tunnel_record" {
   zone_id = data.cloudflare_zone.foundation_zone.id
   name    = "*"
   content = "${cloudflare_zero_trust_tunnel_cloudflared.foundation_tunnel.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
+  ttl     = 1
 }
 
 # -----------------------------------------------------------------------------
 # Cloudflare DNS CNAME Record (Dashboard do Traefik)
 # -----------------------------------------------------------------------------
 
-resource "cloudflare_record" "traefik_tunnel_record" {
+resource "cloudflare_dns_record" "traefik_tunnel_record" {
   zone_id = data.cloudflare_zone.foundation_zone.id
   name    = "traefik"
   content = "${cloudflare_zero_trust_tunnel_cloudflared.foundation_tunnel.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
+  ttl     = 1
 }
 
 # -----------------------------------------------------------------------------
 # Cloudflare DNS CNAME Record (Status do Uptime Kuma)
 # -----------------------------------------------------------------------------
 
-resource "cloudflare_record" "status_tunnel_record" {
+resource "cloudflare_dns_record" "status_tunnel_record" {
   zone_id = data.cloudflare_zone.foundation_zone.id
   name    = "status"
   content = "${cloudflare_zero_trust_tunnel_cloudflared.foundation_tunnel.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
+  ttl     = 1
 }
