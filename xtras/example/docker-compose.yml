@@ -1,14 +1,20 @@
 services:
   example:
-    image: alpine:latest
+    image: nginx:alpine
     container_name: example
-    command: sleep infinity
+    ports:
+      - "8081:80"
     volumes:
-      - /opt/server/data/example:/data
-      - /opt/server/logs/example:/logs
+      - /opt/server/apps/example/html:/usr/share/nginx/html:ro
+      - /opt/server/logs/example:/var/log/nginx
     restart: unless-stopped
     networks:
       - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.example.rule=Host(`example.nettask.com.br`)"
+      - "traefik.http.services.example.loadbalancer.server.port=80"
 networks:
   traefik_net:
     external: true
