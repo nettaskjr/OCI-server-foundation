@@ -1,0 +1,14 @@
+services:
+  example:
+    image: alpine:latest
+    container_name: example
+    command: sleep infinity
+    volumes:
+      - /opt/server/data/example:/data
+      - /opt/server/logs/example:/logs
+    restart: unless-stopped
+    networks:
+      - traefik_net
+networks:
+  traefik_net:
+    external: true

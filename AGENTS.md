@@ -73,3 +73,13 @@ O provedor foi migrado de v4 → v5. NÃO use os nomes antigos v4:
 - `terraform.auto.tfvars` contém defaults não sensíveis; nunca commitar `terraform.tfvars` sensível
 - `scripts/init.sh` fornece um comando de init conveniente (usa uma chave de backend ligeiramente diferente de `backend.tf`)
 - `scripts/teste_webhook.sh` espera um arquivo `.env` ao lado com `DISCORD_WEBHOOK_URL`
+
+## Estrutura de pastas criadas que deveram ser seguidas a risca
+
+- /opt/server/apps
+- /opt/server/data
+- /opt/server/logs
+- /opt/server/backups
+- /opt/server/secrets
+- /opt/server/shared
+- /opt/server/compose
