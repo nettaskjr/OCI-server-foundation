@@ -196,7 +196,7 @@ O uso de Cloudflare Access é recomendado para proteger hostnames publicados no 
 
 ## Backend remoto do Terraform
 
-O estado do Terraform deve ser mantido na AWS, região `us-east-1`, em bucket S3 já existente e informado nas variáveis do ambiente. O uso de tabela DynamoDB deixa de ser obrigatório neste projeto; o backend remoto deve se apoiar no bucket previamente criado e na disciplina operacional do processo para evitar concorrência de execução.[^3]
+O estado do Terraform deve ser mantido na AWS, região `us-east-1`, em bucket S3 previamente criado. O bloqueio de concorrência é feito pelo **lock nativo do S3** (`use_lockfile = true`, requer Terraform >= 1.10), que grava um objeto `.tflock` no próprio bucket; não é utilizada tabela DynamoDB.[^3]
 
 ## Outputs esperados
 

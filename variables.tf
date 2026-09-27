@@ -162,3 +162,9 @@ variable "discord_webhook_url" {
   type        = string
   sensitive   = true
 }
+
+variable "portainer_admin_password" {
+  description = "Senha inicial do usuário admin do Portainer (>= 12 caracteres, sem caracteres especiais problemáticos). Usada no bootstrap via --admin-password-file."
+  type        = string
+  sensitive   = true
+}

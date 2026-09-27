@@ -10,19 +10,19 @@ owner        = "nettask"
 
 # A1.Flex é comumente parte do pacote Always Free em aarch64
 instance_shape     = "VM.Standard.A1.Flex"
-instance_ocpus     = 4
-instance_memory_gb = 24
+instance_ocpus     = 2
+instance_memory_gb = 12
 storage_size_gb    = 200
 
 # Usa versão LTS (ex: 24.04 Noble Numbat ou 22.04 Jammy Jellyfish)
-ubuntu_os_version = "24.04"
+ubuntu_os_version = "26.04"
 
 ssh_allowed_cidr_blocks = ["0.0.0.0/0"]
 
 # Variáveis integradas Cloudflare 
 # (Substituir pelos seus dados se usar diferente)
-cloudflare_zone_name     = "nettask.com.br"
-foundation_subdomain     = "infra.nettask.com.br"
+cloudflare_zone_name    = "nettask.com.br"
+foundation_subdomain    = "infra.nettask.com.br"
 cloudflare_email_access = "nestor.junior@gmail.com"
 
 # região da aws para gravação do tfstate

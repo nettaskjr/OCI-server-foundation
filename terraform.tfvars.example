@@ -14,6 +14,8 @@ oci_private_key_path    = "~/.oci/oci_api_key.pem"
 oci_compartment_ocid    = "ocid1.compartment.oc1..."
 ssh_public_key          = "ssh-rsa AAAAB3N...."
 ubuntu_os_password      = "sua-senha-segura-aqui"
+# Senha inicial do usuário admin do Portainer (mínimo 12 caracteres)
+portainer_admin_password = "senha-inicial-do-portainer-aqui"
 
 # --- Cloudflare ---
 cloudflare_api_token    = "sua-chave-api-da-cloudflare-com-permissao-em-dns-access"

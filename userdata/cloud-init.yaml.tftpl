@@ -40,7 +40,6 @@ packages:
   - cockpit
   - udisks2-lvm2
   - cockpit-pcp
-  - netdata
   - tree
   - ncdu
 
@@ -103,10 +102,27 @@ write_files:
     content: |
       ${indent(6, grafana_contactpoints)}
 
-  # Docker Compose da Observabilidade (Grafana, Loki, Promtail)
+  # Configuração de Alertas do Netdata (Discord Webhook)
+  - path: /opt/server/apps/netdata/health_alarm_notify.conf
+    content: |
+      SEND_DISCORD="YES"
+      DISCORD_WEBHOOK_URL="${discord_webhook_url}"
+      DEFAULT_RECIPIENT_DISCORD="alarms"
+
+  # Docker Compose da Observabilidade (Grafana, Loki, Promtail, Netdata)
   - path: /opt/server/compose/observability/docker-compose.yml
     content: |
       ${indent(6, observability_compose_yml)}
+
+  # Docker Compose do Portainer (UI de gestão do Docker)
+  - path: /opt/server/compose/portainer/docker-compose.yml
+    content: |
+      ${indent(6, portainer_compose_yml)}
+
+  # Senha inicial do admin do Portainer (consumida via --admin-password-file)
+  - path: /opt/server/secrets/portainer_admin
+    permissions: "0600"
+    content: "${portainer_admin_password}"
 
   # Docker Compose do Uptime Kuma
   - path: /opt/server/compose/uptime-kuma/docker-compose.yml
@@ -144,6 +160,9 @@ runcmd:
   - chmod -R 755 /opt/server
   - chmod 700 /opt/server/secrets
   - chmod 700 /opt/server/backups
+  # Reaplica proteção no segredo do Portainer (o chmod -R acima afrouxa)
+  - chown root:root /opt/server/secrets/portainer_admin
+  - chmod 600 /opt/server/secrets/portainer_admin
 
   # =========================================================================
   # 1. Instalar Docker Engine Oficial (ao invés do mantido pelo repositório Ubuntu)
@@ -173,7 +192,7 @@ runcmd:
   - sudo dpkg -i cloudflared.deb || sudo apt-get install -f -y
 
   # Instalar o tunnel como serviço e inicializar passando a secret por auth_token
-  - sudo cloudflared service install ${tunnel_token}
+  - sudo cloudflared service install "${tunnel_token}"
   - sudo systemctl enable cloudflared
   - sudo systemctl start cloudflared
 
@@ -184,7 +203,11 @@ runcmd:
   - sudo docker network create traefik_net || true
   - cd /opt/server/compose/traefik && sudo docker compose up -d
 
-  # Observabilidade (Loki, Promtail, Grafana)
+  # Portainer (UI de gestão do Docker)
+  - sudo mkdir -p /opt/server/data/portainer
+  - cd /opt/server/compose/portainer && sudo docker compose up -d
+
+  # Observabilidade (Loki, Promtail, Grafana, Netdata)
   - sudo mkdir -p /opt/server/data/grafana
   - sudo chown -R 472:472 /opt/server/data/grafana
   - sudo mkdir -p /opt/server/data/loki
@@ -204,18 +227,6 @@ runcmd:
   # =========================================================================
   - sudo nmcli con add type dummy con-name fake ifname fake0 ip4 192.0.2.2/24
     gw4 192.0.2.1 || true
-
-  # =========================================================================
-  # 5. Configurar Alertas do Netdata (Discord Webhook)
-  # =========================================================================
-  - sudo touch /etc/netdata/health_alarm_notify.conf
-  - sudo bash -c 'echo "SEND_DISCORD=\"YES\"" >>
-    /etc/netdata/health_alarm_notify.conf'
-  - sudo bash -c 'echo "DISCORD_WEBHOOK_URL=\"${discord_webhook_url}\"" >>
-    /etc/netdata/health_alarm_notify.conf'
-  - sudo bash -c 'echo "DEFAULT_RECIPIENT_DISCORD=\"alarms\"" >>
-    /etc/netdata/health_alarm_notify.conf'
-  - sudo systemctl restart netdata
 
 # Reinicia o sistema após todas as instalações:
 power_state:

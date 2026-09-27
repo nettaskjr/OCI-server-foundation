@@ -35,3 +35,8 @@ output "host_standard_paths" {
     compose = "/opt/server/compose"
   }
 }
+
+output "cloud_init_log_command" {
+  description = "Comando para acompanhar a saída do cloud-init em tempo real"
+  value       = "sudo tail -f /var/log/cloud-init-output.log"
+}

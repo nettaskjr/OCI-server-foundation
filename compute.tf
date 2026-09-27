@@ -59,15 +59,19 @@ resource "oci_core_instance" "foundation_vm" {
 
     # Define o template file em shell script com injecao do token gerado pela cloudflare tf
     user_data = base64encode(templatefile("${path.module}/userdata/cloud-init.yaml.tftpl", {
-      tunnel_token        = var.tunnel_secret
+      tunnel_token        = data.cloudflare_zero_trust_tunnel_cloudflared_token.foundation_tunnel_token.token
       cockpit_url         = "cockpit.${var.cloudflare_zone_name}"
       ubuntu_os_password  = var.ubuntu_os_password
       base_domain         = var.cloudflare_zone_name
       discord_webhook_url = var.discord_webhook_url
       portal_url          = var.foundation_subdomain
 
+      # Senha inicial do admin do Portainer
+      portainer_admin_password = var.portainer_admin_password
+
       # Arquivos Externos Carregados
       traefik_compose_yml       = file("${path.module}/userdata/files/traefik-compose.yml.tftpl")
+      portainer_compose_yml     = templatefile("${path.module}/userdata/files/portainer-compose.yml.tftpl", { base_domain = var.cloudflare_zone_name })
       cockpit_conf              = templatefile("${path.module}/userdata/files/cockpit.conf.tftpl", { cockpit_url = "cockpit.${var.cloudflare_zone_name}" })
       loki_config_yaml          = file("${path.module}/userdata/files/loki-config.yaml.tftpl")
       promtail_config_yaml      = file("${path.module}/userdata/files/promtail-config.yaml.tftpl")

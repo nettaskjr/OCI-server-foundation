@@ -10,9 +10,16 @@ data "cloudflare_zone" "foundation_zone" {
 # -----------------------------------------------------------------------------
 
 resource "cloudflare_zero_trust_tunnel_cloudflared" "foundation_tunnel" {
+  account_id    = var.cloudflare_account_id
+  name          = "${local.resource_prefix}-tunnel"
+  config_src    = "cloudflare"
+  tunnel_secret = var.tunnel_secret
+}
+
+# Recupera o token real de autenticacao do cloudflared (JWT) associado ao tunel
+data "cloudflare_zero_trust_tunnel_cloudflared_token" "foundation_tunnel_token" {
   account_id = var.cloudflare_account_id
-  name       = "${local.resource_prefix}-tunnel"
-  config_src = "cloudflare"
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.foundation_tunnel.id
 }
 
 # -----------------------------------------------------------------------------
@@ -37,6 +44,7 @@ locals {
     var.foundation_subdomain,
     "cockpit.${var.cloudflare_zone_name}",
     "netdata.${var.cloudflare_zone_name}",
+    "portainer.${var.cloudflare_zone_name}",
     "traefik.${var.cloudflare_zone_name}",
     "status.${var.cloudflare_zone_name}"
   ])
@@ -50,16 +58,16 @@ resource "cloudflare_zero_trust_access_application" "protected_apps" {
   session_duration = "24h"
   type             = "self_hosted"
 
-    policies = [{
-      name       = "Default Allow Admin"
-      decision   = "allow"
-      precedence = 1
-      include = [{
-        email = {
-          email = var.cloudflare_email_access
-        }
-      }]
+  policies = [{
+    name       = "Default Allow Admin"
+    decision   = "allow"
+    precedence = 1
+    include = [{
+      email = {
+        email = var.cloudflare_email_access
+      }
     }]
+  }]
 }
 
 # -----------------------------------------------------------------------------
